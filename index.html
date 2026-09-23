@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SENSEI // Global Intelligence</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-main: #050506;
+            --bg-glass: rgba(13, 13, 16, 0.8);
+            --border-color: rgba(255, 255, 255, 0.06);
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: #cbd5e1;
+            overflow: hidden;
+            height: 100vh;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .glass {
+            background: var(--bg-glass);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+        }
+        .tab-active {
+            color: var(--accent-blue);
+            border-bottom: 2px solid var(--accent-blue);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+        .stock-item {
+            transition: all 0.2s ease;
+            border-left: 2px solid transparent;
+        }
+        .stock-item:hover {
+            background: rgba(59, 130, 246, 0.1);
+            border-left-color: var(--accent-blue);
+        }
+        .stock-item.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-left-color: var(--accent-blue);
+        }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+    <!-- Left Navigation Rail -->
+    <nav class="w-16 flex flex-col items-center py-6 glass border-r border-white/5 space-y-8">
+        <div class="text-blue-500 font-bold text-2xl mono">S</div>
+        <div class="flex-1 space-y-6">
+            <button onclick="switchExplorer('market')" id="nav-market" class="p-3 rounded-xl text-blue-400 bg-blue-500/10 transition-all" title="Market Explorer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m0 0a9 9 0 01//C" />
+                </svg>
+            </button>
+            <button onclick="switchExplorer('top-picks')" id="nav-top-picks" class="p-3 rounded-xl text-slate-500 hover:text-blue-400 transition-all" title="Top Picks">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+            </button>
+            <button onclick="switchExplorer('watchlist')" id="nav-watchlist" class="p-3 rounded-xl text-slate-500 hover:text-blue-400 transition-all" title="Watchlist">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                </svg>
+            </button>
+        </div>
+        <div id="status-indicator" class="w-3 h-3 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+    </nav>
+
+    <!-- Main Layout -->
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Sidebar Explorer -->
+        <aside class="w-80 glass border-r border-white/5 flex flex-col">
+            <div class="p-6 space-y-6">
+                <div>
+                    <h2 class="text-lg font-bold mono mb-1">SENSEI <span class="text-blue-500">.</span></h2>
+                    <p class="text-[10px] text-slate-500 uppercase tracking-widest">Intelligence Terminal</p>
+                </div>
+
+                <div id="market-controls" class="space-y-3">
+                    <div class="relative">
+                        <input type="text" id="stock-search" oninput="filterStocks()" placeholder="Search ticker..."
+                               class="w-full p-3 pl-10 rounded-xl bg-black/40 border border-white/10 text-sm mono focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 absolute left-3 top-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    <select id="signal-filter" onchange="filterStocks()" class="w-full p-3 rounded-xl bg-black/40 border border-white/10 text-xs mono focus:outline-none appearance-none cursor-pointer">
+                        <option value="ALL">All Signals</option>
+                        <option value="BULLISH">Bullish Only</option>
+                        <option value="BEARISH">Bearish Only</option>
+                        <option value="NEUTRAL">Neutral Only</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="stock-list" class="flex-1 overflow-y-auto px-4 pb-6 space-y-2">
+                <!-- Stock items injected here -->
+                <div class="flex flex-col items-center justify-center py-12 text-slate-600">
+                    <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mb-2"></div>
+                    <p class="text-xs mono">Syncing Market...</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-white/5">
+                <button onclick="toggleCompareMode()" id="compare-toggle" class="w-full p-2 rounded-lg bg-slate-900 text-[10px] mono border border-white/10 hover:bg-slate-800 transition-all">
+                    COMPARISON MODE: OFF
+                </button>
+            </div>
+        </aside>
+
+        <!-- Detail Area -->
+        <section class="flex-1 flex flex-col overflow-hidden relative bg-[#08080a]">
+            <!-- Top Bar -->
+            <header class="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-black/20">
+                <div id="selected-ticker-header" class="flex items-center gap-4">
+                    <h2 id="header-ticker" class="text-xl font-bold mono">Select a Stock</h2>
+                    <div id="header-price" class="text-lg font-semibold mono text-blue-400 opacity-0 transition-opacity">₹0.00</div>
+                </div>
+                <div id="header-status" class="text-[10px] mono px-2 py-1 rounded bg-slate-800 text-slate-400 border border-white/10">
+                    IDLE
+                </div>
+            </header>
+
+            <!-- Content Wrapper -->
+            <div class="flex-1 overflow-y-auto p-8">
+                <div id="empty-state" class="h-full flex flex-col items-center justify-center text-center">
+                    <div class="w-24 h-24 bg-slate-900/50 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-2xl">
+                        <span class="text-5xl grayscale opacity-50">📉</span>
+                    </div>
+                    <h3 class="text-2xl font-semibold mb-2 mono">No Signal Selected</h3>
+                    <p class="text-slate-500 max-w-md mx-auto">Analyze global assets using the SENSEI hybrid engine. Select a ticker from the explorer to begin.</p>
+                </div>
+
+                <div id="detail-view" class="hidden space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <!-- Navigation Tabs -->
+                    <div class="flex gap-6 border-b border-white/10">
+                        <button onclick="switchTab('chart')" id="tab-chart" class="pb-3 text-sm font-medium transition-all tab-active">Price Trend</button>
+                        <button onclick="switchTab('analysis')" id="tab-analysis" class="pb-3 text-sm font-medium transition-all text-slate-500 hover:text-slate-300">AI Analysis</button>
+                        <button onclick="switchTab('tester')" id="tab-tester" class="pb-3 text-sm font-medium transition-all text-slate-500 hover:text-slate-300">Strategy Tester</button>
+                    </div>
+
+                    <!-- Content: Chart -->
+                    <div id="content-chart" class="space-y-6">
+                        <div class="flex gap-2">
+                            <button onclick="changeTimeframe('1D')" class="tf-btn px-3 py-1 text-xs rounded bg-slate-900 hover:bg-slate-800 border border-white/10 mono">1D</button>
+                            <button onclick="changeTimeframe('1W')" class="tf-btn px-3 py-1 text-xs rounded bg-slate-900 hover:bg-slate-800 border border-white/10 mono">1W</button>
+                            <button onclick="changeTimeframe('1M')" class="tf-btn px-3 py-1 text-xs rounded bg-blue-600 mono border border-blue-400/50">1M</button>
+                            <button onclick="changeTimeframe('6M')" class="tf-btn px-3 py-1 text-xs rounded bg-slate-900 hover:bg-slate-800 border border-white/10 mono">6M</button>
+                            <button onclick="changeTimeframe('1Y')" class="tf-btn px-3 py-1 text-xs rounded bg-slate-900 hover:bg-slate-800 border border-white/10 mono">1Y</button>
+                            <button onclick="changeTimeframe('ALL')" class="tf-btn px-3 py-1 text-xs rounded bg-slate-900 hover:bg-slate-800 border border-white/10 mono">ALL</button>
+                        </div>
+                        <div id="chart-container" class="h-[500px] w-full rounded-2xl overflow-hidden border border-white/10 bg-black/40 shadow-inner"></div>
+                    </div>
+
+                    <!-- Content: Analysis -->
+                    <div id="content-analysis" class="hidden space-y-8">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="md:col-span-2 glass p-8 rounded-3xl text-center relative overflow-hidden group">
+                                <div class="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                <p class="text-slate-500 text-xs uppercase tracking-widest mb-4 relative z-10">SENSEI Primary Directive</p>
+                                <p id="action-val" class="text-7xl font-black mono tracking-tighter relative z-10">---</p>
+                            </div>
+                            <div class="glass p-6 rounded-3xl flex flex-col justify-center items-center text-center">
+                                <p class="text-slate-500 text-xs uppercase mb-2">AI Confidence</p>
+                                <div class="relative w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-3">
+                                    <div id="conf-bar" class="absolute top-0 left-0 h-full bg-blue-500 transition-all duration-1000" style="width: 0%"></div>
+                                </div>
+                                <p id="conf-val" class="text-3xl font-bold mono">---</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="glass p-4 rounded-2xl">
+                                <p class="text-slate-500 text-[10px] uppercase mb-1">Market Cap</p>
+                                <p id="info-mcap" class="text-base font-bold mono">---</p>
+                            </div>
+                            <div class="glass p-4 rounded-2xl">
+                                <p class="text-slate-500 text-[10px] uppercase mb-1">P/E Ratio</p>
+                                <p id="info-pe" class="text-base font-bold mono">---</p>
+                            </div>
+                            <div class="glass p-4 rounded-2xl">
+                                <p class="text-slate-500 text-[10px] uppercase mb-1">52W High</p>
+                                <p id="info-high" class="text-base font-bold mono">---</p>
+                            </div>
+                            <div class="glass p-4 rounded-2xl">
+                                <p class="text-slate-500 text-[10px] uppercase mb-1">52W Low</p>
+                                <p id="info-low" class="text-base font-bold mono">---</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="glass p-6 rounded-2xl text-center">
+                                <p class="text-slate-500 text-xs uppercase mb-2">AI Prediction</p>
+                                <p id="pred-val" class="text-2xl font-bold mono">---</p>
+                            </div>
+                            <div class="glass p-6 rounded-2xl text-center">
+                                <p class="text-slate-500 text-xs uppercase mb-2">Macro Regime</p>
+                                <p id="regime-val" class="text-2xl font-bold mono">---</p>
+                            </div>
+                            <div class="glass p-6 rounded-2xl text-center">
+                                <p class="text-slate-500 text-xs uppercase mb-2">Confidence Level</p>
+                                <p id="conf-level" class="text-2xl font-bold mono">---</p>
+                            </div>
+                        </div>
+
+                        <div class="glass p-8 rounded-3xl border-l-4 border-blue-500">
+                            <h3 class="text-sm font-semibold text-slate-400 uppercase mb-4 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707M6.858 18.364l.707-.707M14.5 12a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" />
+                                </svg>
+                                SENSEI Core Reasoning
+                            </h3>
+                            <p id="reason-val" class="text-lg leading-relaxed italic text-slate-300">Loading intelligence...</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="glass p-6 rounded-2xl flex justify-between items-center border-l-4 border-green-500">
+                                <div>
+                                    <p class="text-slate-500 text-xs uppercase mb-1">Support Level</p>
+                                    <p id="support-val" class="text-2xl font-bold mono">---</p>
+                                </div>
+                                <span class="text-green-500 text-xs mono">FLOOR</span>
+                            </div>
+                            <div class="glass p-6 rounded-2xl flex justify-between items-center border-l-4 border-red-500">
+                                <div>
+                                    <p class="text-slate-500 text-xs uppercase mb-1">Resistance Level</p>
+                                    <p id="resistance-val" class="text-2xl font-bold mono">---</p>
+                                </div>
+                                <span class="text-red-500 text-xs mono">CEILING</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content: Tester -->
+                    <div id="content-tester" class="hidden space-y-8">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-2xl font-bold mono">SENSEI Strategy Backtest</h3>
+                            <div class="text-xs mono text-slate-500 px-3 py-1 glass rounded-full">30-Day Window</div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div class="glass p-8 rounded-3xl text-center border-t-4 border-slate-600">
+                                <p class="text-slate-500 text-xs uppercase mb-4">Market Benchmark</p>
+                                <p id="bt-market-val" class="text-4xl font-black mono">---</p>
+                            </div>
+                            <div class="glass p-8 rounded-3xl text-center border-t-4 border-blue-500">
+                                <p class="text-slate-500 text-xs uppercase mb-4">Rule-Based Strategy</p>
+                                <p id="bt-rule-val" class="text-4xl font-black mono">---</p>
+                                <p id="bt-rule-trades" class="text-xs mono text-slate-500 mt-4">0 Trades</p>
+                            </div>
+                            <div class="glass p-8 rounded-3xl text-center border-t-4 border-green-500">
+                                <p class="text-slate-500 text-xs uppercase mb-4">SENSEI Hybrid AI</p>
+                                <p id="bt-hybrid-val" class="text-4xl font-black mono">---</p>
+                                <p id="bt-hybrid-trades" class="text-xs mono text-slate-500 mt-4">0 Trades</p>
+                            </div>
+                        </div>
+                        <div class="glass p-8 rounded-3xl">
+                            <div class="flex justify-between items-center mb-6">
+                                <h4 class="text-sm font-semibold uppercase text-slate-400">Performance Insight</h4>
+                                <span id="bt-status-badge" class="text-[10px] px-3 py-1 rounded-full bg-slate-800 mono">ANALYZING...</span>
+                            </div>
+                            <p id="bt-summary-val" class="text-xl italic text-slate-300 leading-relaxed">Simulating trades using historical data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comparison Container -->
+                <div id="comparison-container" class="hidden grid grid-cols-1 md:grid-cols-2 gap-8 h-full">
+                    <div id="view-a" class="glass rounded-3xl p-8 hidden"></div>
+                    <div id="view-b" class="glass rounded-3xl p-8 hidden"></div>
+                    <div class="col-span-full flex justify-center mt-4">
+                        <button onclick="clearComparison()" class="px-6 py-3 rounded-xl bg-red-900/20 text-red-400 border border-red-500/30 text-xs mono hover:bg-red-900/40 transition-all">
+                            CLEAR COMPARISON
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const API_BASE = "http://127.0.0.1:8080";
+        let chart = null;
+        let currentTicker = null;
+        let currentPeriod = '1M';
+        let allStocks = [];
+        let comparisonMode = false;
+        let compareSlots = { a: null, b: null };
+
+        async function loadStocks() {
+            const listEl = document.getElementById('stock-list');
+            console.log("[UI] loadStocks triggered");
+
+            try {
+                console.log("[UI] Fetching stocks from:", API_BASE + "/stocks");
+                const res = await fetch(`${API_BASE}/stocks`);
+
+                if (!res.ok) {
+                    throw new Error(`Server responded with status: ${res.status}`);
+                }
+
+                const data = await res.json();
+                console.log("[UI] Data received successfully:", data);
+
+                if (!data || !data.stocks) {
+                    throw new Error("Server response missing 'stocks' array");
+                }
+
+                allStocks = data.stocks;
+                console.log("[UI] allStocks populated with", allStocks.length, "items");
+                filterStocks();
+            } catch (e) {
+                console.error("[UI] loadStocks Critical Error:", e);
+                listEl.innerHTML = `
+                    <div class="p-6 text-center">
+                        <div class="text-red-400 text-xs mono mb-4">Connection Error: ${e.message}</div>
+                        <button onclick="loadStocks()" class="px-4 py-2 rounded-lg bg-blue-600 text-white text-[10px] mono hover:bg-blue-500 transition-all">
+                            RETRY SYNC
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function filterStocks() {
+            console.log("[UI] filterStocks called");
+            try {
+                const searchTerm = document.getElementById('stock-search').value.toUpperCase();
+                const signalFilter = document.getElementById('signal-filter').value;
+
+                const filtered = allStocks.filter(s => {
+                    const matchesSearch = s.ticker.toUpperCase().includes(searchTerm);
+                    const matchesSignal = signalFilter === 'ALL' || s.signal === signalFilter;
+                    return matchesSearch && matchesSignal;
+                });
+                console.log("[UI] Filtered results count:", filtered.length);
+                renderStockList(filtered);
+            } catch (e) {
+                console.error("[UI] filterStocks error:", e);
+            }
+        }
+
+        async function loadWatchlist() {
+            try {
+                const res = await fetch(`${API_BASE}/watchlist`);
+                const data = await res.json();
+                renderStockList(data.stocks);
+            } catch (e) {
+                console.error("Failed to load watchlist", e);
+            }
+        }
+
+        function switchExplorer(type) {
+            const navs = {
+                market: document.getElementById('nav-market'),
+                'top-picks': document.getElementById('nav-top-picks'),
+                watchlist: document.getElementById('nav-watchlist')
+            };
+            const marketControls = document.getElementById('market-controls');
+
+            Object.values(navs).forEach(btn => {
+                btn.classList.remove('text-blue-400', 'bg-blue-500/10');
+                btn.classList.add('text-slate-500');
+            });
+
+            const activeBtn = navs[type];
+            activeBtn.classList.add('text-blue-400', 'bg-blue-500/10');
+            activeBtn.classList.remove('text-slate-500');
+
+            if (type === 'market') {
+                marketControls.classList.remove('hidden');
+                filterStocks();
+            } else if (type === 'top-picks') {
+                marketControls.classList.add('hidden');
+                loadTopPicks();
+            } else {
+                marketControls.classList.add('hidden');
+                loadWatchlist();
+            }
+        }
+
+        async function loadTopPicks() {
+            try {
+                const res = await fetch(`${API_BASE}/top-picks`);
+                const data = await res.json();
+                renderStockList(data.stocks, true);
+            } catch (e) {
+                console.error("Failed to load top picks", e);
+            }
+        }
+
+        async function toggleWatchlist(ticker) {
+            try {
+                const res = await fetch(`${API_BASE}/watchlist/${ticker}`, { method: 'POST' });
+                if (res.ok) {
+                    if (document.getElementById('nav-watchlist').classList.contains('text-blue-400')) {
+                        loadWatchlist();
+                    }
+                }
+            } catch (e) {
+                console.error("Watchlist error", e);
+            }
+        }
+
+        function renderStockList(stocks, isTopPicks = false) {
+            const list = document.getElementById('stock-list');
+            list.innerHTML = '';
+
+            if (stocks.length === 0) {
+                list.innerHTML = `<div class="p-4 text-center text-slate-600 text-xs mono">No stocks found</div>`;
+                return;
+            }
+
+            stocks.forEach(stock => {
+                const btn = document.createElement('button');
+                btn.className = `w-full flex justify-between items-center p-4 rounded-xl glass stock-item group ${currentTicker === stock.ticker ? 'active' : ''}`;
+                const deltaColor = stock.delta > 0 ? 'text-green-400' : stock.delta < 0 ? 'text-red-400' : 'text-slate-400';
+                const deltaSign = stock.delta > 0 ? '+' : '';
+                const signalColor = stock.signal === 'BULLISH' ? 'text-green-400' : stock.signal === 'BEARISH' ? 'text-red-400' : 'text-slate-400';
+
+                btn.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <button onclick="event.stopPropagation(); toggleWatchlist('${stock.ticker}')" class="text-slate-600 hover:text-yellow-400 transition-colors">
+                            <span class="text-xs">★</span>
+                        </button>
+                        <div class="flex flex-col items-start">
+                            <div class="flex items-center gap-2">
+                                <span class="${signalColor} text-[10px] font-bold">●</span>
+                                <span class="font-bold mono">${stock.ticker}</span>${(isTopPicks && stock.score) ? `<span class="ml-2 px-1.5 py-0.5 rounded bg-blue-900/40 text-blue-400 text-[10px] mono">${stock.score}</span>` : ''}
+                            </div>
+                            <span class="text-[10px] text-slate-500 truncate max-w-[120px]">${stock.name}</span>
+                        </div>
+                    </div>
+                    <span class="${deltaColor} text-xs mono font-medium">${deltaSign}${stock.delta}%</span>
+                `;
+                btn.onclick = () => selectStock(stock.ticker);
+                list.appendChild(btn);
+            });
+        }
+
+        function toggleCompareMode() {
+            comparisonMode = !comparisonMode;
+            const btn = document.getElementById('compare-toggle');
+            btn.innerText = `COMPARISON MODE: ${comparisonMode ? 'ON' : 'OFF'}`;
+            btn.classList.toggle('bg-blue-600', comparisonMode);
+
+            if (comparisonMode) {
+                document.getElementById('detail-view').classList.add('hidden');
+                document.getElementById('empty-state').classList.add('hidden');
+                document.getElementById('comparison-container').classList.remove('hidden');
+            } else {
+                document.getElementById('comparison-container').classList.add('hidden');
+                if (currentTicker) {
+                    selectStock(currentTicker);
+                } else {
+                    document.getElementById('empty-state').classList.remove('hidden');
+                }
+            }
+        }
+
+        function clearComparison() {
+            compareSlots = { a: null, b: null };
+            document.getElementById('view-a').classList.add('hidden');
+            document.getElementById('view-b').classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+        }
+
+        async function selectStock(ticker) {
+            if (comparisonMode) {
+                if (!compareSlots.a) {
+                    compareSlots.a = ticker;
+                    loadComparisonView('a', ticker);
+                } else if (!compareSlots.b) {
+                    compareSlots.b = ticker;
+                    loadComparisonView('b', ticker);
+                } else {
+                    compareSlots.a = ticker;
+                    loadComparisonView('a', ticker);
+                }
+                return;
+            }
+
+            currentTicker = ticker;
+
+            // Update UI state
+            document.querySelectorAll('.stock-item').forEach(el => {
+                el.classList.toggle('active', el.innerText.includes(ticker));
+            });
+
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('hidden');
+            document.getElementById('header-ticker').innerText = ticker;
+            document.getElementById('header-status').innerText = 'ANALYZING...';
+            document.getElementById('header-status').classList.add('text-blue-400');
+
+            try {
+                const res = await fetch(`${API_BASE}/full_analysis/${currentTicker}`);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({ detail: 'Unknown server error' }));
+                    const errorMsg = errData.detail || `Server error: ${res.status}`;
+
+                    // If it's a 404 (Ticker not found), don't pop up an alert.
+                    // Just show it in the UI.
+                    if (res.status === 404) {
+                        showErrorInUI(errorMsg);
+                        return;
+                    }
+                    throw new Error(errorMsg);
+                }
+                const data = await res.json();
+                updateMainUI(data);
+                document.getElementById('header-status').innerText = 'SYSTEM ONLINE';
+                document.getElementById('header-status').classList.remove('text-blue-400');
+            } catch (e) {
+                console.error("Failed to load full analysis", e);
+                alert(`Error loading stock data: ${e.message}`);
+            }
+        }
+
+        function showErrorInUI(message) {
+            document.getElementById('empty-state').classList.remove('hidden');
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('empty-state').innerHTML = `
+                <div class="w-24 h-24 bg-red-900/20 rounded-full flex items-center justify-center mb-6 border border-red-500/30 shadow-2xl">
+                    <span class="text-5xl">⚠️</span>
+                </div>
+                <h3 class="text-2xl font-semibold mb-2 mono text-red-400">Ticker Not Found</h3>
+                <p class="text-slate-500 max-w-md mx-auto">${message}. This symbol may be delisted or incorrect.</p>
+            `;
+            document.getElementById('header-ticker').innerText = currentTicker;
+            document.getElementById('header-status').innerText = 'NOT FOUND';
+            document.getElementById('header-status').classList.add('text-red-400');
+        }
+
+        async function loadComparisonView(slot, ticker) {
+            const viewId = slot === 'a' ? 'view-a' : 'view-b';
+            const viewEl = document.getElementById(viewId);
+            viewEl.classList.remove('hidden');
+            viewEl.innerHTML = `<div class="flex items-center justify-center h-64"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div></div>`;
+
+            try {
+                const res = await fetch(`${API_BASE}/full_analysis/${ticker}`);
+                const data = await res.json();
+
+                viewEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold mono">${ticker}</h3>
+                        <div class="text-lg font-semibold mono text-blue-400">${formatCurrency(data.prediction.current_price)}</div>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="glass p-4 rounded-2xl text-center border-2 ${data.prediction.prediction === 'BULLISH' ? 'border-green-500/50' : data.prediction.prediction === 'BEARISH' ? 'border-red-500/50' : 'border-slate-500/50'}">
+                            <p class="text-slate-500 text-[10px] uppercase mb-1">Signal</p>
+                            <p class="text-2xl font-black mono ${data.prediction.prediction === 'BULLISH' ? 'text-green-400' : data.prediction.prediction === 'BEARISH' ? 'text-red-400' : 'text-slate-400'}">${data.prediction.prediction}</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="glass p-3 rounded-xl text-center">
+                                <p class="text-slate-500 text-[10px] uppercase">Confidence</p>
+                                <p class="text-sm font-bold mono">${data.prediction.confidence}</p>
+                            </div>
+                            <div class="glass p-3 rounded-xl text-center">
+                                <p class="text-slate-500 text-[10px] uppercase">Regime</p>
+                                <p class="text-sm font-bold mono">${data.prediction.macro_regime}</p>
+                            </div>
+                        </div>
+                        <div class="glass p-4 rounded-xl">
+                            <p class="text-slate-500 text-[10px] uppercase mb-2">AI Reasoning</p>
+                            <p class="text-xs italic text-slate-300 leading-relaxed">${data.prediction.reason}</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="glass p-3 rounded-xl border-l-2 border-green-500 text-center">
+                                <p class="text-slate-500 text-[10px] uppercase">Support</p>
+                                <p class="text-xs font-bold mono">${formatCurrency(data.prediction.support)}</p>
+                            </div>
+                            <div class="glass p-3 rounded-xl border-l-2 border-red-500 text-center">
+                                <p class="text-slate-500 text-[10px] uppercase">Resistance</p>
+                                <p class="text-xs font-bold mono">${formatCurrency(data.prediction.resistance)}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } catch (e) {
+                viewEl.innerHTML = `<p class="text-red-400 text-xs mono">Failed to load ${ticker}</p>`;
+            }
+        }
+
+        function updateMainUI(data) {
+            updateChart(data.chart.dates, data.chart.prices, data.prediction.support, data.prediction.resistance);
+            document.getElementById('info-mcap').innerText = formatLargeNumber(data.info.market_cap);
+            document.getElementById('info-pe').innerText = data.info.pe_ratio;
+            document.getElementById('info-high').innerText = formatCurrency(data.info.high_52w);
+            document.getElementById('info-low').innerText = formatCurrency(data.info.low_52w);
+
+            const predData = data.prediction;
+            const deltaColor = predData.delta > 0 ? 'text-green-400' : predData.delta < 0 ? 'text-red-400' : 'text-slate-400';
+            const deltaSign = predData.delta > 0 ? '+' : '';
+            document.getElementById('header-price').innerHTML = `
+                ${formatCurrency(predData.current_price)}
+                <span class="${deltaColor} text-sm ml-2">${deltaSign}${predData.delta}%</span>
+            `;
+            document.getElementById('header-price').classList.remove('opacity-0');
+
+            document.getElementById('pred-val').innerText = predData.prediction;
+            document.getElementById('pred-val').className = `text-2xl font-bold mono ${predData.prediction === 'BULLISH' ? 'text-green-400' : predData.prediction === 'BEARISH' ? 'text-red-400' : 'text-slate-400'}`;
+
+            const confVal = predData.confidence_raw;
+            document.getElementById('conf-val').innerText = predData.confidence;
+            document.getElementById('conf-bar').style.width = `${confVal}%`;
+            document.getElementById('conf-bar').className = `absolute top-0 left-0 h-full transition-all duration-1000 ${confVal > 70 ? 'bg-green-500' : confVal > 40 ? 'bg-blue-500' : 'bg-red-500'}`;
+
+            document.getElementById('conf-level').innerText = confVal > 70 ? 'High' : confVal > 40 ? 'Medium' : 'Low';
+            document.getElementById('regime-val').innerText = predData.macro_regime;
+            document.getElementById('regime-val').className = `text-2xl font-bold mono ${predData.macro_regime === 'BULLISH' ? 'text-green-400' : predData.macro_regime === 'BEARISH' ? 'text-red-400' : 'text-slate-400'}`;
+            document.getElementById('reason-val').innerText = predData.reason;
+            document.getElementById('support-val').innerText = formatCurrency(predData.support);
+            document.getElementById('resistance-val').innerText = formatCurrency(predData.resistance);
+
+            const actionEl = document.getElementById('action-val');
+            if (predData.prediction === 'BULLISH') {
+                actionEl.innerText = 'BUY';
+                actionEl.className = 'text-7xl font-black mono tracking-tighter text-green-400';
+            } else if (predData.prediction === 'BEARISH') {
+                actionEl.innerText = 'SELL';
+                actionEl.className = 'text-7xl font-black mono tracking-tighter text-red-400';
+            } else {
+                actionEl.innerText = 'HOLD';
+                actionEl.className = 'text-7xl font-black mono tracking-tighter text-slate-400';
+            }
+        }
+
+        async function changeTimeframe(period) {
+            currentPeriod = period;
+            document.querySelectorAll('.tf-btn').forEach(btn => {
+                btn.classList.remove('bg-blue-600', 'border-blue-400/50');
+                btn.classList.add('bg-slate-900', 'border-white/10');
+            });
+            event.target.classList.remove('bg-slate-900', 'border-white/10');
+            event.target.classList.add('bg-blue-600', 'border-blue-400/50');
+
+            try {
+                const res = await fetch(`${API_BASE}/history/${currentTicker}?period=${currentPeriod}`);
+                const data = await res.json();
+                updateChart(data.dates, data.prices);
+            } catch (e) {
+                console.error("Failed to load chart", e);
+            }
+        }
+
+        async function loadBacktest() {
+            if (!currentTicker) return;
+
+            document.getElementById('bt-summary-val').innerText = 'Simulating trades...';
+            document.getElementById('bt-status-badge').innerText = 'ANALYZING...';
+
+            try {
+                const res = await fetch(`${API_BASE}/backtest/${currentTicker}`);
+                if (!res.ok) throw new Error('Backtest failed');
+                const data = await res.json();
+
+                const marketVal = data.market_benchmark;
+                const ruleVal = data.rule_based.return_pct;
+                const hybridVal = data.hybrid_ai.return_pct;
+
+                document.getElementById('bt-market-val').innerText = `${marketVal}%`;
+                document.getElementById('bt-market-val').className = `text-4xl font-black mono ${marketVal > 0 ? 'text-green-400' : 'text-red-400'}`;
+
+                document.getElementById('bt-rule-val').innerText = `${ruleVal}%`;
+                document.getElementById('bt-rule-val').className = `text-4xl font-black mono ${ruleVal > 0 ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('bt-rule-trades').innerText = `${data.rule_based.trades} Trades`;
+
+                document.getElementById('bt-hybrid-val').innerText = `${hybridVal}%`;
+                document.getElementById('bt-hybrid-val').className = `text-4xl font-black mono ${hybridVal > 0 ? 'text-green-400' : 'text-red-400'}`;
+                document.getElementById('bt-hybrid-trades').innerText = `${data.hybrid_ai.trades} Trades`;
+
+                const outperformance = hybridVal - marketVal;
+                const status = outperformance > 0 ? 'ALPHA GENERATED' : 'BETA TRACKING';
+                document.getElementById('bt-status-badge').innerText = status;
+                document.getElementById('bt-status-badge').className = `text-[10px] px-3 py-1 rounded-full mono ${outperformance > 0 ? 'bg-green-900/30 text-green-400' : 'bg-slate-800 text-slate-400'}`;
+
+                document.getElementById('bt-summary-val').innerText = `In the last ${data.period_days} days, SENSEI Hybrid AI achieved a ${hybridVal}% return, ${outperformance > 0 ? 'outperforming' : 'underperforming'} the market by ${Math.abs(outperformance).toFixed(2)}%. The AI filter reduced noise by eliminating ${data.rule_based.trades - data.hybrid_ai.trades} low-confidence trades.`;
+            } catch (e) {
+                console.error("Backtest error", e);
+                document.getElementById('bt-summary-val').innerText = 'Failed to load backtest data. Please try again.';
+                document.getElementById('bt-status-badge').innerText = 'ERROR';
+            }
+        }
+
+        function formatLargeNumber(num) {
+            if (num === "N/A" || num === null || num === undefined) return "N/A";
+            const value = parseFloat(num);
+            if (isNaN(value)) return num;
+            if (value >= 1e12) return (value / 1e12).toFixed(2) + 'T';
+            if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B';
+            if (value >= 1e6) return (value / 1e6).toFixed(2) + 'M';
+            if (value >= 1e3) return (value / 1e3).toFixed(2) + 'K';
+            return value.toLocaleString();
+        }
+
+        function formatCurrency(num) {
+            if (num === "N/A" || num === null || num === undefined) return "N/A";
+            const value = parseFloat(num);
+            if (isNaN(value)) return num;
+            return `₹${value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+
+        function updateChart(labels, data, support = null, resistance = null) {
+            const container = document.getElementById('chart-container');
+            container.innerHTML = '';
+
+            if (typeof LightweightCharts === 'undefined') {
+                console.error("LightweightCharts library not loaded!");
+                container.innerHTML = '<div class="flex items-center justify-center h-full text-red-400 mono text-xs">Library Load Error: Please refresh page</div>';
+                return;
+            }
+
+            try {
+                const chart = LightweightCharts.createChart(container, {
+                    layout: {
+                        backgroundColor: 'transparent',
+                        textColor: '#64748b',
+                    },
+                    grid: {
+                        vertLines: { color: 'rgba(255,255,255,0.05)' },
+                        horzLines: { color: 'rgba(255,255,255,0.05)' },
+                    },
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                    },
+                    rightPriceScale: {
+                        borderColor: 'rgba(255,255,255,0.1)',
+                    },
+                    timeScale: {
+                        borderColor: 'rgba(255,255,255,0.1)',
+                    },
+                });
+
+                if (!chart || typeof chart.addLineSeries !== 'function') {
+                    throw new Error("Chart object created but addLineSeries is missing");
+                }
+
+                const lineSeries = chart.addLineSeries({
+                    color: '#3b82f6',
+                    lineWidth: 2,
+                });
+
+                const formattedData = labels.map((l, i) => ({
+                    time: l,
+                    value: data[i]
+                }));
+                lineSeries.setData(formattedData);
+
+                if (support !== null) {
+                    const supportLine = chart.addLineSeries({
+                        color: 'rgba(34, 197, 94, 0.6)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                    });
+                    supportLine.setData([
+                        { time: formattedData[0].time, value: support },
+                        { time: formattedData[formattedData.length - 1].time, value: support }
+                    ]);
+                }
+
+                if (resistance !== null) {
+                    const resLine = chart.addLineSeries({
+                        color: 'rgba(239, 68, 68, 0.6)',
+                        lineWidth: 1,
+                        lineStyle: 2,
+                    });
+                    resLine.setData([
+                        { time: formattedData[0].time, value: resistance },
+                        { time: formattedData[formattedData.length - 1].time, value: resistance }
+                    ]);
+                }
+
+                chart.timeScale().fitContent();
+                window.currentChart = chart;
+            } catch (e) {
+                console.error("Chart rendering error:", e);
+                container.innerHTML = `<div class="flex items-center justify-center h-full text-red-400 mono text-xs">Chart Error: ${e.message}</div>`;
+                throw e; // Re-throw to let selectStock handle it
+            }
+        }
+
+        function switchTab(tab) {
+            const chartContent = document.getElementById('content-chart');
+            const analysisContent = document.getElementById('content-analysis');
+            const testerContent = document.getElementById('content-tester');
+            const chartTab = document.getElementById('tab-chart');
+            const analysisTab = document.getElementById('tab-analysis');
+            const testerTab = document.getElementById('tab-tester');
+
+            [chartContent, analysisContent, testerContent].forEach(el => el.classList.add('hidden'));
+            [chartTab, analysisTab, testerTab].forEach(el => {
+                el.classList.remove('tab-active');
+                el.classList.add('text-slate-500');
+            });
+
+            if (tab === 'chart') {
+                chartContent.classList.remove('hidden');
+                chartTab.classList.add('tab-active');
+            } else if (tab === 'analysis') {
+                analysisContent.classList.remove('hidden');
+                analysisTab.classList.add('tab-active');
+            } else if (tab === 'tester') {
+                testerContent.classList.remove('hidden');
+                testerTab.classList.add('tab-active');
+                loadBacktest();
+            }
+        }
+
+        // Initialize immediately and on DOM content loaded to be safe
+        loadStocks();
+        window.addEventListener('DOMContentLoaded', loadStocks);
+    </script>
+</body>
+</html>
